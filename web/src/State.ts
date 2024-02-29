@@ -1,11 +1,12 @@
 import createPlugin, { Plugin } from "@extism/extism";
-import {createStore} from "solid-js/store";
+import {createResource} from "solid-js";
 
-const PLUGIN = 'plugin'
-interface State {
-    [PLUGIN]: Plugin | null
+const getPlugin = async () : Promise<Plugin> => {
+    return await createPlugin({
+        wasm: [{
+            url: 'http://localhost:8080/plugins.wasm'
+        }]
+    }, {useWasi : true})
 }
 
-export const [store, setStore] = createStore<State>({
-    plugin : null
-})
+export const [plugin, {}] = createResource(getPlugin)

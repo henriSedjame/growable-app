@@ -1,27 +1,17 @@
-import {Component, createEffect, createResource, createSignal} from 'solid-js';
+import {Component, createEffect, createSignal} from 'solid-js';
 
 import styles from './App.module.css';
-
-import {createPlugin, Plugin} from "@extism/extism";
+import {plugin} from "./State";
 
 interface Person {
     age: number,
     name: string
 }
 
-const getPlugin = async () : Promise<Plugin> => {
-    return await createPlugin({
-        wasm: [{
-            url: 'http://localhost:8080/plugins.wasm'
-        }]
-    }, {useWasi : true})
-}
-
 
 const App: Component = () => {
-    const [message, setMessage] = createSignal("");
 
-    const [plugin, {}] = createResource(getPlugin)
+    const [message, setMessage] = createSignal("");
 
     const person : Person = {
         age: 29,
@@ -29,6 +19,13 @@ const App: Component = () => {
     }
 
     createEffect(() => {
+        plugin()?.getExports().then(exports => {
+            exports.forEach(ex => {
+                console.log(ex.name, " =>" , ex.kind)
+
+            })
+        });
+
         plugin()?.call('hello', JSON.stringify(person))
             .then(m => setMessage(m?.text() ?? ''))
     });
