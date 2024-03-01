@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@extism/extism": "^1.0.2",
+    "@solid-primitives/upload": "^0.0.116",
     "solid-js": "^1.8.11"
   }
 }

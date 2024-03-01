@@ -11,7 +11,7 @@ struct Person {
 
 #[plugin_fn]
 pub fn hello(Json(person): Json<Person>) -> FnResult<String> {
-    Ok(format!("🤚Bonjour je m'appelle {}  et j'ai {} ans!!", person.name, person.age))
+    Ok(format!("🤚Hello 😃 je m'appelle {} et j'ai {} ans!!", person.name, person.age))
 }
 
 

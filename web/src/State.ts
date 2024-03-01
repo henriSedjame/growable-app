@@ -1,4 +1,4 @@
-import createPlugin, { Plugin } from "@extism/extism";
+import createPlugin, {Plugin} from "@extism/extism";
 import {createResource} from "solid-js";
 
 const getPlugin = async () : Promise<Plugin> => {
@@ -9,4 +9,4 @@ const getPlugin = async () : Promise<Plugin> => {
     }, {useWasi : true})
 }
 
-export const [plugin, {}] = createResource(getPlugin)
+export const [plugin, { refetch }] = createResource(getPlugin)
