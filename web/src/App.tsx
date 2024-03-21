@@ -1,7 +1,9 @@
-import {Component,  createMemo, createSignal, Show} from 'solid-js';
+import {Component, createEffect, createMemo, createResource, createSignal, Show} from 'solid-js';
 
 import styles from './App.module.css';
-import {plugin, refetch} from "./State";
+import {current_plugin, getPlugin,  setCurrentPlugin} from "./State";
+import {call} from "./utils";
+import {deletePlugin, storePlugin} from "./Service";
 
 interface Person {
     age: number,
@@ -13,26 +15,10 @@ const person: Person = {
     name: "Joe"
 }
 
-const saveFile = async (file: File | undefined, onsuccess: () => void) => {
-
-    if (file) {
-        const formData: FormData = new FormData()
-
-        formData.append('file', file)
-
-        await fetch('http://localhost:8080/plugins', {
-            method: 'POST',
-            body: formData
-        }).then(r => r.json())
-            .then(data => {
-                console.log(data);
-                onsuccess()
-            })
-    }
-
-}
 
 const App: Component = () => {
+
+    const [plugin, { refetch: refetchPlugin }] = createResource(current_plugin, getPlugin)
 
     const [message, setMessage] = createSignal("");
 
@@ -41,21 +27,22 @@ const App: Component = () => {
     // @ts-ignore
     let fileInputRef: HTMLInputElement = null;
 
-    createMemo(() => {
-        plugin()?.getExports().then(exports => {
-            exports.forEach(ex => {
-                console.log(ex.name, " =>" , ex.kind)
+    createEffect( () => {
+        const plug = plugin()
+        if (plug) {
+            call(plug, 'hello', person, JSON.stringify)
+                .then(m => setMessage(m?.text() ?? ''));
 
+            plug.getImports().then(is => {
+                is.forEach(i => console.log(i.name))
             })
-        });
 
-        plugin()?.call('hello', JSON.stringify(person))
-            .then(m => setMessage(m?.text() ?? ''))
+        }
+
     });
 
     function handleFile(e: Event) {
         let fileList = ((e as InputEvent).target as HTMLInputElement).files;
-        console.log(fileList);
         if (fileList) {
             let file = fileList.item(0);
             if (file) {
@@ -64,12 +51,20 @@ const App: Component = () => {
         }
     }
 
-    const save = () => {
-        saveFile(files(), () => {
-            refetch()
-            setFiles(undefined)
-            fileInputRef.value = ''
-        })
+    const save = async () => {
+        let file = files();
+        if (file) {
+            await deletePlugin(file.name).then(async deleted => {
+                if (deleted) {
+                    await storePlugin(file, async () => {
+                        setCurrentPlugin(file?.name ?? null)
+                        refetchPlugin()
+                        setFiles(undefined)
+                        fileInputRef.value = ''
+                    })
+                }
+            })
+        }
     }
 
     return (

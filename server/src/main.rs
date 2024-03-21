@@ -4,13 +4,15 @@ use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
 use axum::routing::post;
 use dotenv::dotenv;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
+use crate::constants::{PLUGINS_DIR, STATIC_DIR};
 
 type ApiResult = Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)>;
 
 mod constants {
     pub const PLUGINS_DIR: &str = "plugins";
+    pub const STATIC_DIR: &str = "static";
     pub const ALLOWED_ORIGINS: &str = "ALLOWED_ORIGINS";
     pub const ALLOWED_ORIGINS_NOT_FOUND: &str = "Variable ALLOWED_ORIGINS is not found";
     pub const WASM_EXTENSION: &str= ".wasm";
@@ -32,6 +34,7 @@ mod constants {
     pub mod routes {
         pub const DEFAULT: &str = "/";
         pub const PLUGINS : &str = "/plugins";
+        pub const PLUGIN_FILES : &str = "/plugin-files";
     }
 }
 
@@ -46,7 +49,7 @@ mod handlers {
     use serde::Deserialize;
     use serde_json::{json};
 
-    use crate::{ApiResult, constants, utils::get_plugins_dir};
+    use crate::{ApiResult, constants, utils::get_dir};
     use crate::constants::{PLUGINS_DIR, WASM_EXTENSION, };
 
     #[derive(Deserialize)]
@@ -62,7 +65,7 @@ mod handlers {
     }
 
     pub async fn get_plugins() -> ApiResult {
-        let plugins = fs::read_dir(get_plugins_dir())
+        let plugins = fs::read_dir(get_dir(PLUGINS_DIR))
             .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!(constants::messages::FAILED_READ_PLUGINS_DIR))))?
             .filter_map(|p| {
                 let entry = p.unwrap();
@@ -84,7 +87,7 @@ mod handlers {
     
     pub async fn delete_plugin(Query(query): Query<DeleteQuery>) -> ApiResult {
        
-        let mut plugin_file = get_plugins_dir();
+        let mut plugin_file = get_dir(PLUGINS_DIR);
         plugin_file.push(format!("{}{}", query.name, WASM_EXTENSION));
         
         fs::remove_file(plugin_file)
@@ -124,7 +127,7 @@ mod handlers {
     }
     
     fn exist(plugin_name: String) -> bool {
-        fs::read_dir(get_plugins_dir())
+        fs::read_dir(get_dir(PLUGINS_DIR))
             .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!(constants::messages::FAILED_READ_PLUGINS_DIR))))
             .unwrap()
             .find(|p| p.as_ref().unwrap().file_name().to_string_lossy().to_string() == plugin_name)
@@ -135,17 +138,14 @@ mod handlers {
 mod utils {
     use std::env::{current_dir, var};
     use std::path::PathBuf;
-
     use axum::http::HeaderValue;
-
     use crate::constants;
-    use crate::constants::PLUGINS_DIR;
-
-    pub fn get_plugins_dir() -> PathBuf {
+    
+    pub fn get_dir(name: impl Into<String>) -> PathBuf {
         let mut buf = current_dir().unwrap();
 
-        buf.push(PLUGINS_DIR);
-
+        buf.push(name.into());
+        
         buf
     }
 
@@ -165,7 +165,8 @@ async fn main() {
     dotenv().ok();
 
     let cors = CorsLayer::new()
-        .allow_origin(utils::get_allowed_origins());
+        .allow_origin(utils::get_allowed_origins())
+        .allow_methods(Any);
 
     let app = Router::new()
         .route(constants::routes::PLUGINS, 
@@ -175,7 +176,8 @@ async fn main() {
                    .get(handlers::get_plugins)
         )
         .layer(DefaultBodyLimit::disable())
-        .nest_service(constants::routes::DEFAULT, ServeDir::new(utils::get_plugins_dir()))
+        .nest_service(constants::routes::PLUGIN_FILES, ServeDir::new(utils::get_dir(PLUGINS_DIR)))
+        .nest_service(constants::routes::DEFAULT, ServeDir::new(utils::get_dir(STATIC_DIR)))
         .layer(cors);
 
     let listener = tokio::net::TcpListener::bind(constants::ADDR)
